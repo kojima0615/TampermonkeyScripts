@@ -5,7 +5,7 @@
 // @description  競馬のタイム比較
 // @author       kojima0615
 // @match        https://race.netkeiba.com/race/shutuba.html*
-// @match        https://race.netkeiba.com//odds/index.html*
+// @match        https://race.netkeiba.com/odds/index.html*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=netkeiba.com
 // @grant GM_xmlhttpRequest
 // @connect db.netkeiba.com
