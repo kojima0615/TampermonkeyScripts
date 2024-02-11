@@ -9,6 +9,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=netkeiba.com
 // @grant GM_xmlhttpRequest
 // @connect db.netkeiba.com
+// @require     https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min.js
+// @resource    jqUI_CSS  http://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/themes/base/jquery-ui.css
 // ==/UserScript==
 
 
@@ -119,7 +121,7 @@
         function oddsCallback(_this, _odds_status, _data) {
             for (const key in this.numberDict) {
                 //[単勝オッズ,人気]
-                this.odds[key] = _data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
+                this.odds[key] = _odds_status.data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
             }
         }
         var oddsD = { odds: {}, numberDict: numberDict };
@@ -127,10 +129,9 @@
             apiUrl: 'https://race.netkeiba.com/api/api_get_jra_odds.html',
             raceId: getParam("race_id"),
             isPremium: 0,
-            displayDiffTime: false,
-            isBrackets: false,
-            compress: true,
-            callbackApiComplete: oddsCallback.bind(oddsD)
+            // debugMode:true,
+            // callbackApiComplete: oddsCallback.bind(oddsD)
+            callbackApiOverrideView: oddsCallback.bind(oddsD)
         });
 
 
