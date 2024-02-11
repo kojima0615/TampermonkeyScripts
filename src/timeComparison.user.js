@@ -9,17 +9,16 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=netkeiba.com
 // @grant GM_xmlhttpRequest
 // @connect db.netkeiba.com
-
 // ==/UserScript==
 
 
 (function () {
     'use strict';
     window.addEventListener('load', async function () {
-        /// 普通の関数ならこう書き変え可能
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
+        // /// 普通の関数ならこう書き変え可能
+        // function sleep(ms) {
+        //     return new Promise(resolve => setTimeout(resolve, ms));
+        // }
 
         /**
          * Get the URL parameter value
@@ -36,9 +35,9 @@
             if (!results[2]) return '';
             return decodeURIComponent(results[2].replace(/\+/g, " "));
         }
+
         //出馬テーブル取得
         const url = "https://race.netkeiba.com/race/shutuba.html?race_id=" + getParam("race_id");
-
         //各馬の過去レースへのリンクを取得
         function getHorseData(url) {
             return new Promise((resolve, reject) => {
@@ -55,7 +54,10 @@
                             var popularityDict = {}
                             var weightDict = {}
                             var numberDict = {}
+                            var selectedDict = {}
+                            var reverseNumberDict = {}
                             const horse_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList');
+                            const horse_selected_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList Selected');
                             for (const element of horse_raw) {
                                 const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
                                 const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
@@ -66,8 +68,23 @@
                                 popularityDict[horsename.getAttribute('title')] = popularity;
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
+                                reverseNumberDict[number] = horsename.getAttribute('title');
+                                selectedDict[horsename.getAttribute('title')] = 0;
                             }
-                            resolve({ horseLink: horseLink, popularityDict: popularityDict, weightDict: weightDict, numberDict: numberDict });
+                            for (const element of horse_selected_raw) {
+                                const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
+                                const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
+                                //人気が空になる
+                                const number = element.children[1].innerHTML;
+                                const weight = element.children[5].innerHTML;
+                                horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
+                                popularityDict[horsename.getAttribute('title')] = popularity;
+                                weightDict[horsename.getAttribute('title')] = weight;
+                                numberDict[horsename.getAttribute('title')] = number;
+                                reverseNumberDict[number] = horsename.getAttribute('title');
+                                selectedDict[horsename.getAttribute('title')] = 0;
+                            }
+                            resolve({ horseLink: horseLink, popularityDict: popularityDict, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict, reverseNumberDict: reverseNumberDict });
                         }
                         catch (e) {
                             //競走馬データがないときにTypeErrorが返る
@@ -81,28 +98,52 @@
                 )
             })
         }
+
         var tmpDict = await getHorseData(url);
         var horseLink = tmpDict.horseLink;
         var popularityDict = tmpDict.popularityDict;
         var weightDict = tmpDict.weightDict;
         var numberDict = tmpDict.numberDict;
+        var reverseNumberDict = tmpDict.reverseNumberDict;
+        var selectedDict = {};
 
-        //各馬の過去レースへのリンクを取得
-        // var horseLink = {};
-        // var popularityDict = {}
-        // var weightDict = {}
-        // var numberDict = {}
-        // const horse_raw = document.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList');
-        // for (const element of horse_raw) {
-        //     const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
-        //     const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
-        //     const number = element.children[1].innerHTML;
-        //     const weight = element.children[5].innerHTML;
-        //     horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
-        //     popularityDict[horsename.getAttribute('title')] = popularity;
-        //     weightDict[horsename.getAttribute('title')] = weight;
-        //     numberDict[horsename.getAttribute('title')] = number;
-        // }
+        //--:記録されない0を置く,◎:1,丸:2,黒三角:3,三角:4,星:5,チェック:98,消:99
+        function updateSelectDict(result) {
+            var tmpD = {};
+            for (const key in result) {
+                var tmp = result[key]["_cd"].split("_")
+                tmpD[tmp[0]] = tmp[1];
+            }
+            for (const key in this.numberDict) {
+                if (this.numberDict[key] in tmpD) {
+                    this.selectedDict[key] = tmpD[this.numberDict[key]];
+                } else {
+                    this.selectedDict[key] = "0"
+                }
+            }
+        }
+        var markDict = { selectedDict: selectedDict, numberDict: numberDict };
+        cart_get_itemlist("horse_" + getParam("race_id"), updateSelectDict.bind(markDict));
+
+        //オッズ確認
+        /* Area created in the intern End */
+        //これで単複オッズ及び人気を返す
+        function oddsCallback(_this, _odds_status, _data) {
+            for (const key in this.numberDict) {
+                //[単勝オッズ,人気]
+                this.odds[key] = _data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
+            }
+        }
+        var oddsD = { odds: {}, numberDict: numberDict };
+        await $.oddsUpdate({
+            apiUrl: 'https://race.netkeiba.com/api/api_get_jra_odds.html',
+            raceId: getParam("race_id"),
+            isPremium: 0,
+            displayDiffTime: false,
+            isBrackets: false,
+            compress: true,
+            callbackApiComplete: oddsCallback.bind(oddsD)
+        });
 
 
         //過去レース情報を取得
@@ -217,7 +258,8 @@
         //カラム生成
         var tr = document.createElement('tr');
         //var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
-        var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順"]
+        //チェックは同期していない
+        var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
         var columnIndex = [1, 0, 2, 3, 4, 5, 6];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
         var weightIndex = 5;
         var nameIndex = 0;
@@ -230,8 +272,8 @@
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
-        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex);
-        function updateTableFromList(list, table, columnIndex, weightDict, weightIndex, numberDict, nameIndex) {
+        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict);
+        function updateTableFromList(list, table, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict) {
             while (table.rows.length > 1) table.deleteRow(-1);
             for (const l of list) {
                 var tr = document.createElement('tr');
@@ -241,21 +283,23 @@
                         td.textContent = String((weightDict[l[columnIndex[nameIndex]]] - 0) - (l[columnIndex[i]] - 0));
                     }
                     else if (i == nameIndex) {
-                        td.textContent = "(" + numberDict[l[columnIndex[i]]] + ")" + l[columnIndex[i]];
+                        var markDecode = { "0": "--", "1": "◎", "2": "⚪︎", "3": "▲", "4": "△", "5": "☆", "98": "✔️", "99": "消" }
+                        var mark = markDecode[markDict.selectedDict[l[columnIndex[i]]]];
+                        td.textContent = mark + "(" + numberDict[l[columnIndex[i]]] + ")" + l[columnIndex[i]];
                     }
                     else {
                         td.textContent = l[columnIndex[i]];
                     }
                     tr.appendChild(td);
                 }
-                // var tdc = document.createElement('td');
-                // tdc.textContent = popularityDict[l[1]];
-                // tr.appendChild(tdc);
+                var tdc = document.createElement('td');
+                tdc.textContent = oddsD.odds[l[columnIndex[nameIndex]]][2];
+                tr.appendChild(tdc);
                 table.appendChild(tr);
             }
         }
 
-        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex));
+        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict));
     });
     // Your code here...
 })();
