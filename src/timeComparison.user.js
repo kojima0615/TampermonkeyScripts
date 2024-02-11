@@ -15,10 +15,6 @@
 (function () {
     'use strict';
     window.addEventListener('load', async function () {
-        // /// 普通の関数ならこう書き変え可能
-        // function sleep(ms) {
-        //     return new Promise(resolve => setTimeout(resolve, ms));
-        // }
 
         /**
          * Get the URL parameter value
@@ -51,11 +47,9 @@
                         responseXML = new DOMParser().parseFromString(d.responseText, "text/html");
                         try {
                             var horseLink = {};
-                            var popularityDict = {}
                             var weightDict = {}
                             var numberDict = {}
                             var selectedDict = {}
-                            var reverseNumberDict = {}
                             const horse_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList');
                             const horse_selected_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList Selected');
                             for (const element of horse_raw) {
@@ -65,10 +59,8 @@
                                 const number = element.children[1].innerHTML;
                                 const weight = element.children[5].innerHTML;
                                 horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
-                                popularityDict[horsename.getAttribute('title')] = popularity;
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
-                                reverseNumberDict[number] = horsename.getAttribute('title');
                                 selectedDict[horsename.getAttribute('title')] = 0;
                             }
                             for (const element of horse_selected_raw) {
@@ -78,13 +70,11 @@
                                 const number = element.children[1].innerHTML;
                                 const weight = element.children[5].innerHTML;
                                 horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
-                                popularityDict[horsename.getAttribute('title')] = popularity;
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
-                                reverseNumberDict[number] = horsename.getAttribute('title');
                                 selectedDict[horsename.getAttribute('title')] = 0;
                             }
-                            resolve({ horseLink: horseLink, popularityDict: popularityDict, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict, reverseNumberDict: reverseNumberDict });
+                            resolve({ horseLink: horseLink, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict });
                         }
                         catch (e) {
                             //競走馬データがないときにTypeErrorが返る
@@ -101,10 +91,8 @@
 
         var tmpDict = await getHorseData(url);
         var horseLink = tmpDict.horseLink;
-        var popularityDict = tmpDict.popularityDict;
         var weightDict = tmpDict.weightDict;
         var numberDict = tmpDict.numberDict;
-        var reverseNumberDict = tmpDict.reverseNumberDict;
         var selectedDict = {};
 
         //--:記録されない0を置く,◎:1,丸:2,黒三角:3,三角:4,星:5,チェック:98,消:99
@@ -230,6 +218,7 @@
             parent = document.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('UmarenWrapper clearfix')[0];
         }
 
+
         //ドロップダウンメニューを作成
         var select = document.createElement("select");
         var linkElement = document.createElement("link");
@@ -251,6 +240,64 @@
 
         parent.appendChild(select);
 
+        //カレンダーを追加
+        var dateGroup = document.createElement('div');
+        dateGroup.classList.add("input-group");
+        dateGroup.classList.add("my-2");
+        parent.appendChild(dateGroup);
+        var description = document.createElement('span');
+        description.innerHTML = "期間:";
+        description.classList.add("input-group-text");
+        dateGroup.appendChild(description);
+        var description = document.createElement('span');
+        description.innerHTML = "From:";
+        description.classList.add("input-group-text");
+        dateGroup.appendChild(description);
+        var fromDate = document.createElement('input');
+        fromDate.type = "input";
+        fromDate.id = "fromDate";
+        fromDate.className = "pickDate";
+        const defaultFrom = new Date();
+        defaultFrom.setFullYear(defaultFrom.getFullYear() - 2);
+        $(fromDate).datepicker({
+            changeYear: true,
+            changeMonth: true,
+            maxDate: new Date()
+        });
+
+        $(fromDate).datepicker("setDate", defaultFrom);
+        fromDate.classList.add("form-control");
+        dateGroup.appendChild(fromDate);
+        var description = document.createElement('span');
+        description.innerHTML = "To:";
+        description.classList.add("input-group-text");
+        dateGroup.appendChild(description);
+        var toDate = document.createElement('input');
+        toDate.classList.add("form-control");
+        toDate.type = "input";
+        toDate.id = "toDate";
+        toDate.className = "pickDate2";
+        $(toDate).datepicker({
+            changeYear: true,
+            changeMonth: true,
+            maxDate: new Date(),
+        });
+        $(toDate).datepicker("setDate", new Date());
+        toDate.classList.add("form-control");
+        dateGroup.appendChild(toDate);
+
+        //検索ぼたん
+        //日付変更をイベントの発火点にできなかったので
+        var search = document.createElement('button');
+        search.innerHTML = "検索";
+        search.classList.add("my-2");
+        search.classList.add("btn");
+        search.classList.add("btn-outline-primary");
+        search.classList.add("w-100");
+        parent.appendChild(search);
+
+
+
         //テーブル作成
         var resultTable = document.createElement("table");
         resultTable.appendChild(linkElement);
@@ -263,6 +310,7 @@
         var columnIndex = [1, 0, 2, 3, 4, 5, 6];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
         var weightIndex = 5;
         var nameIndex = 0;
+        var dateIndex = 2;
         for (const column of columns) {
             var th = document.createElement('th');
             // th要素内にテキストを追加
@@ -272,10 +320,21 @@
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
-        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict);
-        function updateTableFromList(list, table, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict) {
+        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex);
+        function dateTransform(dt) {
+            var y = dt.getFullYear();
+            var m = ("00" + (dt.getMonth() + 1)).slice(-2);
+            var d = ("00" + (dt.getDate())).slice(-2);
+            return y + "/" + m + "/" + d;
+        }
+        function updateTableFromList(list, table, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex) {
+            var fromTime = dateTransform($(fromDate).datepicker("getDate"));
+            var toTime = dateTransform($(toDate).datepicker("getDate"));
             while (table.rows.length > 1) table.deleteRow(-1);
             for (const l of list) {
+                if ((l[columnIndex[dateIndex]] > toTime) || (l[columnIndex[dateIndex]] < fromTime)) {
+                    continue;
+                }
                 var tr = document.createElement('tr');
                 for (let i = 0; i < columnIndex.length; i++) {
                     var td = document.createElement('td');
@@ -299,7 +358,7 @@
             }
         }
 
-        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict));
+        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex));
+        search.addEventListener('click', () => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex));
     });
-    // Your code here...
 })();
