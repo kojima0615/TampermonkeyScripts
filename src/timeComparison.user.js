@@ -232,6 +232,18 @@
 
 
         //ドロップダウンメニューを作成
+        var selectors = document.createElement("div");
+        selectors.classList.add("d-flex");
+        selectors.classList.add("flex-row");
+        parent.appendChild(selectors);
+
+        var description = document.createElement('div');
+        description.innerHTML = "距離:";
+        description.classList.add("input-group-text");
+        description.classList.add("p-2");
+        description.classList.add("my-2");
+        selectors.appendChild(description);
+
         var select = document.createElement("select");
         var linkElement = document.createElement("link");
 
@@ -241,6 +253,7 @@
         select.appendChild(linkElement);
         select.classList.add("form-select");
         select.classList.add("my-2");
+        select.classList.add("w-25");
 
         select.setAttribute("name", "コース選択");
         for (const raceType of resultKeys) {
@@ -249,8 +262,29 @@
             option.appendChild(document.createTextNode(raceType));
             select.appendChild(option);
         }
+        // parent.appendChild(select);
+        selectors.appendChild(select);
 
-        parent.appendChild(select);
+        var placeList = ["指定なし", "札幌", "函館", "福島", "新潟", "中山", "東京", "中京", "京都", "阪神", "小倉"];//中央の競馬場一覧
+        var description = document.createElement('div');
+        description.innerHTML = "開催地:";
+        description.classList.add("input-group-text");
+        description.classList.add("p-2");
+        description.classList.add("my-2");
+        selectors.appendChild(description);
+
+        var selectP = document.createElement("select");
+        selectP.classList.add("form-select");
+        selectP.classList.add("my-2");
+        selectP.classList.add("w-25");
+        selectP.setAttribute("name", "開催地");
+        for (const p of placeList) {
+            var option = document.createElement("option");
+            option.setAttribute("value", p);
+            option.appendChild(document.createTextNode(p));
+            selectP.appendChild(option);
+        }
+        selectors.appendChild(selectP);
 
         //カレンダーを追加
         var dateGroup = document.createElement('div');
@@ -318,9 +352,6 @@
         var tr = document.createElement('tr');
         var columns = ["馬名", "タイム", "上り", "斤量差<br>(本レース-過去レース)", "開催", "馬場", "通過", "着順", "着差", "日付", "人気<br>(本レース)"]
         var columnIndex = [4, 0, 1, 8, 6, 7, 2, 9, 3, 5];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
-        var weightIndex = 3;
-        var nameIndex = 0;
-        var dateIndex = 9;
         for (const column of columns) {
             var th = document.createElement('th');
             // th要素内にテキストを追加
@@ -330,20 +361,43 @@
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
-        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex);
+        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns);
         function dateTransform(dt) {
             var y = dt.getFullYear();
             var m = ("00" + (dt.getMonth() + 1)).slice(-2);
             var d = ("00" + (dt.getDate())).slice(-2);
             return y + "/" + m + "/" + d;
         }
-        function updateTableFromList(list, table, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex) {
+        function updateTableFromList(list, table, columnIndex, weightDict, numberDict, markDict, selectP, columns) {
+            var nameIndex = -1;
+            var dateIndex = -1;
+            var weightIndex = -1;
+            var placeIndex = -1;
+            for (let i = 0; i < columns.length; i++) {
+                if (~columns[i].indexOf("馬名")) {
+                    nameIndex = i;
+                }
+                else if (~columns[i].indexOf("日付")) {
+                    dateIndex = i;
+                }
+                else if (~columns[i].indexOf("斤量")) {
+                    weightIndex = i;
+                }
+                else if (~columns[i].indexOf("開催")) {
+                    placeIndex = i;
+                }
+            }
             var fromTime = dateTransform($(fromDate).datepicker("getDate"));
             var toTime = dateTransform($(toDate).datepicker("getDate"));
             while (table.rows.length > 1) table.deleteRow(-1);
             for (const l of list) {
                 if ((l[columnIndex[dateIndex]] > toTime) || (l[columnIndex[dateIndex]] < fromTime)) {
                     continue;
+                }
+                if (selectP.value != "指定なし") {
+                    if (l[columnIndex[placeIndex]].indexOf(selectP.value) == -1) {
+                        continue;
+                    }
                 }
                 var tr = document.createElement('tr');
                 for (let i = 0; i < columnIndex.length; i++) {
@@ -355,6 +409,9 @@
                         var markDecode = { "0": "--", "1": "◎", "2": "⚪︎", "3": "▲", "4": "△", "5": "☆", "98": "✔️", "99": "消" }
                         var mark = markDecode[markDict.selectedDict[l[columnIndex[i]]]];
                         td.textContent = mark + "(" + numberDict[l[columnIndex[i]]] + ")" + l[columnIndex[i]];
+                    }
+                    else if (i == placeIndex) {
+                        td.textContent = l[columnIndex[i]].slice(1, -1);
                     }
                     else {
                         td.textContent = l[columnIndex[i]];
@@ -368,7 +425,8 @@
             }
         }
 
-        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex));
-        search.addEventListener('click', () => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex));
+        select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
+        selectP.addEventListener('change', (event) => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
+        search.addEventListener('click', () => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
     });
 })();
