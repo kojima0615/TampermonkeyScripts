@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name  timeComparison
 // @namespace    http://tampermonkey.net/
-// @version      2024-01-24
+// @version      2024-02-12
 // @description  競馬のタイム比較
 // @author       kojima0615
 // @match        https://race.netkeiba.com/race/shutuba.html*
@@ -119,12 +119,28 @@
         /* Area created in the intern End */
         //これで単複オッズ及び人気を返す
         function oddsCallback(_this, _odds_status, _data) {
-            for (const key in this.numberDict) {
-                //[単勝オッズ,人気]
-                this.odds[key] = _odds_status.data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
+            ///statusがyosoの場合と、resultの場合で分岐
+            if (_odds_status.status == "yoso") {
+                //単勝オッズは返ってくるが、何を基準にインデックスが振られているのかわからん。
+                //ぱっと見horseIdっぽい
+                //horseLinkをソートすれば良さそう
+                const horseLinkReverse = Object.fromEntries(Object.entries(this.horseLink).map(([key, value]) => [value, key]))
+                const keys = Object.keys(horseLinkReverse);
+                keys.sort();
+                for (let i = 0; i < keys.length; i++) {
+                    //[単勝オッズ,人気]
+                    this.odds[horseLinkReverse[keys[i]]] = _odds_status.data.odds["1"][i + 1];
+                }
             }
+            else if (_odds_status.status == "result") {
+                for (const key in this.numberDict) {
+                    //[単勝オッズ,人気]
+                    this.odds[key] = _odds_status.data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
+                }
+            }
+
         }
-        var oddsD = { odds: {}, numberDict: numberDict };
+        var oddsD = { odds: {}, numberDict: numberDict, horseLink: horseLink };
         await $.oddsUpdate({
             apiUrl: 'https://race.netkeiba.com/api/api_get_jra_odds.html',
             raceId: getParam("race_id"),
@@ -219,6 +235,10 @@
         }
 
 
+
+
+        //UIを作る
+
         // 親要素を選択
         // パスの取得
         let path = location.pathname
@@ -229,6 +249,9 @@
         else if (path == "/odds/index.html") {
             parent = document.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('UmarenWrapper clearfix')[0];
         }
+
+
+        //
 
 
         //ドロップダウンメニューを作成
@@ -256,12 +279,23 @@
         select.classList.add("w-25");
 
         select.setAttribute("name", "コース選択");
+        resultKeys.sort();
         for (const raceType of resultKeys) {
             var option = document.createElement("option");
             option.setAttribute("value", raceType);
             option.appendChild(document.createTextNode(raceType));
             select.appendChild(option);
         }
+        //一番レース数が多い距離を処理値にする。
+        var maxLen = -1;
+        var maxLenIndex = resultKeys[0];
+        for (let i = 0; i < resultKeys.length; i++) {
+            if (raceResult[resultKeys[i]].length > maxLen) {
+                maxLen = raceResult[resultKeys[i]].length;
+                maxLenIndex = i;
+            }
+        }
+        select.options[maxLenIndex].selected = true;
         // parent.appendChild(select);
         selectors.appendChild(select);
 
@@ -304,7 +338,7 @@
         fromDate.id = "fromDate";
         fromDate.className = "pickDate";
         const defaultFrom = new Date();
-        defaultFrom.setFullYear(defaultFrom.getFullYear() - 2);
+        defaultFrom.setFullYear(defaultFrom.getFullYear() - 1);
         $(fromDate).datepicker({
             changeYear: true,
             changeMonth: true,
@@ -342,8 +376,6 @@
         search.classList.add("w-100");
         parent.appendChild(search);
 
-
-
         //テーブル作成
         var resultTable = document.createElement("table");
         resultTable.appendChild(linkElement);
@@ -361,7 +393,8 @@
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
-        updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns);
+
+        updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns);
         function dateTransform(dt) {
             var y = dt.getFullYear();
             var m = ("00" + (dt.getMonth() + 1)).slice(-2);
@@ -411,7 +444,12 @@
                         td.textContent = mark + "(" + numberDict[l[columnIndex[i]]] + ")" + l[columnIndex[i]];
                     }
                     else if (i == placeIndex) {
-                        td.textContent = l[columnIndex[i]].slice(1, -1);
+                        if (l[columnIndex[i]][0] >= "0" && l[columnIndex[i]][0] <= "9") {
+                            td.textContent = l[columnIndex[i]].slice(1, -1);
+                        }
+                        else {
+                            td.textContent = l[columnIndex[i]];
+                        }
                     }
                     else {
                         td.textContent = l[columnIndex[i]];
@@ -419,7 +457,14 @@
                     tr.appendChild(td);
                 }
                 var tdc = document.createElement('td');
-                tdc.textContent = oddsD.odds[l[columnIndex[nameIndex]]][2];
+                //未来のレースだとオッズの返し方が違うらしい
+                try {
+                    tdc.textContent = oddsD.odds[l[columnIndex[nameIndex]]][2];
+                }
+                catch (e) {
+                    tdc.textContent = "**"
+                    //獲得できなかったことにする
+                }
                 tr.appendChild(tdc);
                 table.appendChild(tr);
             }
