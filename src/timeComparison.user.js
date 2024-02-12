@@ -52,6 +52,8 @@
                             var weightDict = {}
                             var numberDict = {}
                             var selectedDict = {}
+                            var raceName = responseXML.getElementById('page').getElementsByClassName('RaceColumn01')[0].getElementsByClassName('RaceColumnWrap fc')[0].getElementsByClassName('RaceMainColumn')[0].getElementsByClassName('RaceList_NameBox')[0].getElementsByClassName('RaceList_Item02')[0].getElementsByClassName('RaceName')[0].textContent;
+
                             const horse_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList');
                             const horse_selected_raw = responseXML.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0].children[0].getElementsByClassName('HorseList Selected');
                             for (const element of horse_raw) {
@@ -76,7 +78,7 @@
                                 numberDict[horsename.getAttribute('title')] = number;
                                 selectedDict[horsename.getAttribute('title')] = 0;
                             }
-                            resolve({ horseLink: horseLink, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict });
+                            resolve({ horseLink: horseLink, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict, raceName: raceName });
                         }
                         catch (e) {
                             //競走馬データがないときにTypeErrorが返る
@@ -96,6 +98,7 @@
         var weightDict = tmpDict.weightDict;
         var numberDict = tmpDict.numberDict;
         var selectedDict = {};
+        var raceName = tmpDict.raceName.replace(/\r?\n|\r/g, "");
 
         //--:記録されない0を置く,◎:1,丸:2,黒三角:3,三角:4,星:5,チェック:98,消:99
         function updateSelectDict(result) {
@@ -251,14 +254,86 @@
         }
 
 
-        //
+        //アコーディオンを作成
+        var linkElement = document.createElement("link");
+        linkElement.type = "text/css";
+        linkElement.rel = "stylesheet";
+        linkElement.href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css";
+        parent.appendChild(linkElement);
+        var linkElement = document.createElement("script");
+        linkElement.setAttribute("src", "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js");
+        parent.appendChild(linkElement);
 
+        var accordion = document.createElement("div");
+        accordion.id = "accordionApp";
+        accordion.classList.add("accordion");
+        accordion.classList.add("my-2");
+        parent.appendChild(accordion);
+
+        //タイム比較
+        var item = document.createElement("div");
+        item.classList.add("accordion-item");
+        accordion.appendChild(item);
+        var header = document.createElement("h2");
+        header.classList.add("accordion-header");
+        item.appendChild(header);
+        var acbutton = document.createElement("button");
+        acbutton.classList.add("accordion-button");
+        acbutton.classList.add("collapsed");
+        acbutton.classList.add("fw-bold");
+        acbutton.type = "button";
+        acbutton.innerHTML = "タイム比較";
+        acbutton.setAttribute("data-bs-toggle", "collapse")
+        acbutton.setAttribute("data-bs-target", "#timeComp")
+        acbutton.setAttribute("aria-controls", "timeComp")
+        acbutton.setAttribute("aria-expanded", "false")
+        header.appendChild(acbutton);
+        var accollapse = document.createElement("div");
+        accollapse.id = "timeComp"
+        accollapse.setAttribute("data-bs-parent", "#accordionApp")
+        accollapse.classList.add("accordion-collapse");
+        accollapse.classList.add("collapse");
+        item.appendChild(accollapse);
+        var acbody = document.createElement("div");
+        acbody.classList.add("accordion-body");
+        accollapse.appendChild(acbody);
+
+        //馬券整理
+        var item = document.createElement("div");
+        item.classList.add("accordion-item");
+        accordion.appendChild(item);
+        var header = document.createElement("h2");
+        header.classList.add("accordion-header");
+        item.appendChild(header);
+        var acbutton = document.createElement("button");
+        acbutton.classList.add("accordion-button");
+        acbutton.classList.add("collapsed");
+        acbutton.classList.add("fw-bold");
+        acbutton.type = "button";
+        acbutton.innerHTML = "馬券プレビュー";
+        acbutton.setAttribute("data-bs-toggle", "collapse")
+        acbutton.setAttribute("data-bs-target", "#ticketPreview")
+        acbutton.setAttribute("aria-controls", "ticketPreview")
+        acbutton.setAttribute("aria-expanded", "false")
+        header.appendChild(acbutton);
+        var accollapse = document.createElement("div");
+        accollapse.id = "ticketPreview"
+        accollapse.setAttribute("data-bs-parent", "#accordionApp")
+        accollapse.classList.add("accordion-collapse");
+        accollapse.classList.add("collapse");
+        item.appendChild(accollapse);
+        var acbodyTicket = document.createElement("div");
+        acbodyTicket.classList.add("accordion-body");
+        accollapse.appendChild(acbodyTicket);
+
+        var timeComparisonBlock = document.createElement("div");
+        acbody.appendChild(timeComparisonBlock);
 
         //ドロップダウンメニューを作成
         var selectors = document.createElement("div");
         selectors.classList.add("d-flex");
         selectors.classList.add("flex-row");
-        parent.appendChild(selectors);
+        timeComparisonBlock.appendChild(selectors);
 
         var description = document.createElement('div');
         description.innerHTML = "距離:";
@@ -268,12 +343,6 @@
         selectors.appendChild(description);
 
         var select = document.createElement("select");
-        var linkElement = document.createElement("link");
-
-        linkElement.type = "text/css";
-        linkElement.rel = "stylesheet";
-        linkElement.href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css";
-        select.appendChild(linkElement);
         select.classList.add("form-select");
         select.classList.add("my-2");
         select.classList.add("w-25");
@@ -324,7 +393,7 @@
         var dateGroup = document.createElement('div');
         dateGroup.classList.add("input-group");
         dateGroup.classList.add("my-2");
-        parent.appendChild(dateGroup);
+        timeComparisonBlock.appendChild(dateGroup);
         var description = document.createElement('span');
         description.innerHTML = "期間:";
         description.classList.add("input-group-text");
@@ -374,7 +443,7 @@
         search.classList.add("btn");
         search.classList.add("btn-outline-primary");
         search.classList.add("w-100");
-        parent.appendChild(search);
+        timeComparisonBlock.appendChild(search);
 
         //テーブル作成
         var resultTable = document.createElement("table");
@@ -392,7 +461,7 @@
             tr.appendChild(th);
         }
         resultTable.appendChild(tr);
-        parent.appendChild(resultTable);
+        timeComparisonBlock.appendChild(resultTable);
 
         updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns);
         function dateTransform(dt) {
@@ -473,5 +542,144 @@
         select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
         selectP.addEventListener('change', (event) => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
         search.addEventListener('click', () => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
+
+        function generateButton(s) {
+            var b = document.createElement("div");
+            b.classList.add("form-check");
+            b.classList.add("form-check-inline");
+            var c = document.createElement("input");
+            c.classList.add("form-check-input");
+            c.setAttribute("type", "checkbox")
+            b.appendChild(c);
+            var d = document.createElement("label");
+            d.classList.add("form-check-label");
+            d.innerHTML = s;
+            b.appendChild(d);
+            return b;
+        }
+
+        var ticketPreviewBlock = document.createElement("div");
+        acbodyTicket.appendChild(ticketPreviewBlock);
+
+        //馬券選択
+        var kindBlock = document.createElement("div");
+        kindBlock.classList.add("border-bottom");
+        kindBlock.classList.add("my-2");
+        // kindBlock.classList.add("border-info");
+        ticketPreviewBlock.appendChild(kindBlock);
+        var kindCheckList = []
+        var kindList = ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "三連複", "三連単"]
+        var numSelect = [1, 1, 2, 2, 2, 2, 3, 3]
+        var description = document.createElement('h6');
+        description.innerHTML = "種類";
+        description.classList.add("fw-bold");
+        // description.classList.add("input-group-text");
+        kindBlock.appendChild(description);
+        // kindBlock.appendChild(document.createElement( "br" ))
+        for (let i = 0; i < kindList.length; i++) {
+            var b = generateButton(kindList[i])
+            kindCheckList.push(b)
+            kindBlock.appendChild(b)
+        }
+        var selectCheckListDict = {}
+        for (let i = 0; i < kindList.length; i++) {
+            var ticketBlock = document.createElement("div");
+            ticketBlock.style.display = 'none';
+            ticketBlock.classList.add("my-2");
+            ticketBlock.classList.add("border-bottom");
+            ticketPreviewBlock.appendChild(ticketBlock);
+            var description = document.createElement('h8');
+            description.innerHTML = kindList[i];
+            description.classList.add("fw-bold");
+            ticketBlock.appendChild(description);
+            ticketBlock.appendChild(document.createElement("br"))
+            var buttonList = []
+            for (let j = 0; j < numSelect[i]; j++) {
+                var description = document.createElement('h8');
+                description.innerHTML = ((j + 1) + '') + "頭目";
+                ticketBlock.appendChild(description);
+                ticketBlock.appendChild(document.createElement("br"))
+                var buttonListTmp = []
+                for (let k = 0; k < Object.keys(horseLink).length; k++) {
+                    var b = generateButton(((k + 1) + ''));
+                    buttonListTmp.push(b)
+                    ticketBlock.appendChild(b)
+                }
+                buttonList.push(buttonListTmp);
+                ticketBlock.appendChild(document.createElement("br"))
+            }
+            selectCheckListDict[kindList[i]] = [buttonList, ticketBlock]
+        }
+
+        function updateDisplay(t, block) {
+            var c = t.getElementsByClassName('form-check-input')[0];
+            if (c.checked) {
+                block.style.display = '';
+            }
+            else {
+                block.style.display = 'none';
+            }
+        }
+
+        for (let i = 0; i < kindList.length; i++) {
+            kindCheckList[i].addEventListener('change', (event) => updateDisplay(kindCheckList[i], selectCheckListDict[kindList[i]][1]));
+        }
+
+
+        //出力ぼたん
+        var output = document.createElement('button');
+        output.innerHTML = "出力&コピー";
+        output.classList.add("my-2");
+        output.classList.add("btn");
+        output.classList.add("btn-outline-primary");
+        output.classList.add("w-100");
+        ticketPreviewBlock.appendChild(output);
+
+        var textarea = document.createElement('textarea');
+        textarea.classList.add("form-control");
+        textarea.classList.add("w-100");
+        textarea.setAttribute("rows", "10")
+        ticketPreviewBlock.appendChild(textarea);
+
+        function outputText(kindCheckList, selectCheckListDict, textarea, kindList, raceName) {
+            var numToUmaban = { 1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤", 6: "⑥", 7: "⑦", 8: "⑧", 9: "⑨", 10: "⓾", 11: "⑪", 12: "⑫", 13: "⑬", 14: "⑭", 15: "⑮", 16: "⑯", 17: "⑰", 18: "⑱" }
+            textarea.innerHTML = "";
+            var s = raceName + "\n";
+            for (let i = 0; i < kindList.length; i++) {
+                if (kindCheckList[i].getElementsByClassName('form-check-input')[0].checked) {
+                    s += kindList[i] + "\n";
+                    var t = "";
+                    var buttonList = selectCheckListDict[kindList[i]][0];
+                    for (let j = 0; j < buttonList.length; j++) {
+                        for (let k = 0; k < buttonList[j].length; k++) {
+                            if (buttonList[j][k].getElementsByClassName('form-check-input')[0].checked)
+                                t += numToUmaban[k + 1];
+                        }
+                        t += "－";
+                    }
+                    t = t.slice(0, -1);
+                    s += t + "\n";
+                }
+            }
+            textarea.innerHTML = s;
+            textarea.select();
+            document.execCommand("Copy");
+            var al = document.createElement('div');
+            al.classList.add("alert");
+            al.classList.add("alert-success");
+            al.classList.add("alert-dismissible");
+            al.classList.add("fade");
+            al.classList.add("show");
+            al.innerHTML = "コピーは完了しました"
+            var b = document.createElement('button');
+
+            al.setAttribute("role", "alert")
+            b.classList.add("btn-close");
+            b.setAttribute("data-bs-dismiss", "alert")
+            b.setAttribute("aria-label", "Close")
+            al.appendChild(b)
+            ticketPreviewBlock.insertBefore(al, textarea);
+        }
+        output.addEventListener('click', () => outputText(kindCheckList, selectCheckListDict, textarea, kindList, raceName));
     });
 })();
