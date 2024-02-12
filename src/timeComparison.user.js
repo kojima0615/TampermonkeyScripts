@@ -149,7 +149,6 @@
                         try {
                             const eachHorseResults = responseXML.getElementById('page').getElementsByClassName('db_main_race fc')[0].getElementsByClassName('db_main_deta')[0].children[1].children[1].children;
                             for (const element of eachHorseResults) {
-                                console.log(element);
                                 const raceType = element.cells[14].innerHTML;
                                 const regex = /&nbsp;/ig;
                                 const time = element.cells[17].innerHTML.replace(regex, ' ');
@@ -200,7 +199,6 @@
         const results = [];
         for (const horseName of linkKeys) {
             results.push(getHorseResult(horseLink[horseName], horseName));
-            //raceResult =　 getHorseResult(horseLink[horseName], horseName, raceResult);
         }
         const items = (await Promise.all(results));
 
@@ -318,23 +316,20 @@
         resultTable.classList.add("table");
         //カラム生成
         var tr = document.createElement('tr');
-        //var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
-        //チェックは同期していない
-        var columns = ["馬名", "タイム", "上り", "通過", "着差", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
-        var columnIndex = [4, 0, 1, 2, 3, 5, 6, 7, 8, 9];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
-        var weightIndex = 8;
+        var columns = ["馬名", "タイム", "上り", "斤量差<br>(本レース-過去レース)", "開催", "馬場", "通過", "着順", "着差", "日付", "人気<br>(本レース)"]
+        var columnIndex = [4, 0, 1, 8, 6, 7, 2, 9, 3, 5];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
+        var weightIndex = 3;
         var nameIndex = 0;
-        var dateIndex = 5;
+        var dateIndex = 9;
         for (const column of columns) {
             var th = document.createElement('th');
             // th要素内にテキストを追加
-            th.textContent = column;
+            th.innerHTML = column;
             // th要素をtr要素の子要素に追加
             tr.appendChild(th);
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
-        console.log(raceResult)
         updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex);
         function dateTransform(dt) {
             var y = dt.getFullYear();
