@@ -149,10 +149,23 @@
                         try {
                             const eachHorseResults = responseXML.getElementById('page').getElementsByClassName('db_main_race fc')[0].getElementsByClassName('db_main_deta')[0].children[1].children[1].children;
                             for (const element of eachHorseResults) {
+                                console.log(element);
                                 const raceType = element.cells[14].innerHTML;
                                 const regex = /&nbsp;/ig;
                                 const time = element.cells[17].innerHTML.replace(regex, ' ');
                                 if (time == ' ') {
+                                    continue;
+                                }
+                                const agari = element.cells[22].innerHTML.replace(regex, ' ');
+                                if (agari == ' ') {
+                                    continue;
+                                }
+                                const tuuka = element.cells[20].innerHTML.replace(regex, ' ');
+                                if (tuuka == ' ') {
+                                    continue;
+                                }
+                                const tyakusa = element.cells[18].innerHTML.replace(regex, ' ');
+                                if (tyakusa == ' ') {
                                     continue;
                                 }
                                 const date = element.cells[0].children[0].innerHTML;
@@ -161,9 +174,9 @@
                                 const weight = element.cells[13].innerHTML;
                                 const rank = element.cells[11].innerHTML;
                                 if (raceType in raceResultTmp) {
-                                    raceResultTmp[raceType].push([time, horseName, date, place, condition, weight, rank]);
+                                    raceResultTmp[raceType].push([time, agari, tuuka, tyakusa, horseName, date, place, condition, weight, rank]);
                                 } else {
-                                    raceResultTmp[raceType] = [[time, horseName, date, place, condition, weight, rank]];
+                                    raceResultTmp[raceType] = [[time, agari, tuuka, tyakusa, horseName, date, place, condition, weight, rank]];
                                 }
                             }
                             resolve(raceResultTmp);
@@ -307,11 +320,11 @@
         var tr = document.createElement('tr');
         //var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
         //チェックは同期していない
-        var columns = ["馬名", "タイム", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
-        var columnIndex = [1, 0, 2, 3, 4, 5, 6];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
-        var weightIndex = 5;
+        var columns = ["馬名", "タイム", "上り", "通過", "着差", "日付", "開催", "馬場", "斤量差(本レース-過去レース)", "着順", "人気(本レース)"]
+        var columnIndex = [4, 0, 1, 2, 3, 5, 6, 7, 8, 9];//各カラムに入る情報がraceResultの何個目のインデックスにいるか
+        var weightIndex = 8;
         var nameIndex = 0;
-        var dateIndex = 2;
+        var dateIndex = 5;
         for (const column of columns) {
             var th = document.createElement('th');
             // th要素内にテキストを追加
@@ -321,6 +334,7 @@
         }
         resultTable.appendChild(tr);
         parent.appendChild(resultTable);
+        console.log(raceResult)
         updateTableFromList(raceResult[resultKeys[0]], resultTable, columnIndex, weightDict, weightIndex, numberDict, nameIndex, markDict, dateIndex);
         function dateTransform(dt) {
             var y = dt.getFullYear();
