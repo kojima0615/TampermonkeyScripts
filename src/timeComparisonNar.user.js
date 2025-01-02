@@ -11,6 +11,7 @@
 // @connect db.netkeiba.com
 // @require     https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min.js
 // @resource    jqUI_CSS  http://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/themes/base/jquery-ui.css
+// @require      https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // ==/UserScript==
 
 
@@ -280,6 +281,7 @@
 
         //タイム比較
         var item = document.createElement("div");
+        item.id = "timeComp";
         item.classList.add("accordion-item");
         accordion.appendChild(item);
         var header = document.createElement("h2");
@@ -452,6 +454,15 @@
         search.classList.add("btn-outline-primary");
         search.classList.add("w-100");
         timeComparisonBlock.appendChild(search);
+        //検索ぼたん
+        //日付変更をイベントの発火点にできなかったので
+        var download = document.createElement('button');
+        download.innerHTML = "スクリーンショット";
+        download.classList.add("my-2");
+        download.classList.add("btn");
+        download.classList.add("btn-outline-primary");
+        download.classList.add("w-100");
+        timeComparisonBlock.appendChild(download);
 
         //テーブル作成
         var resultTable = document.createElement("table");
@@ -547,9 +558,29 @@
             }
         }
 
+
         select.addEventListener('change', (event) => updateTableFromList(raceResult[event.target.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
         selectP.addEventListener('change', (event) => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
         search.addEventListener('click', () => updateTableFromList(raceResult[select.value], resultTable, columnIndex, weightDict, numberDict, markDict, selectP, columns));
+        download.addEventListener('click',function() {
+            // 対象のdivを取得
+            const targetDiv = document.querySelector('#timeComp'); // IDで指定
+            if (!targetDiv) {
+                alert('Target div not found!');
+                return;
+            }
+    
+            // スクリーンショットを取得
+            html2canvas(targetDiv).then(canvas => {
+                // 画像をダウンロード
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png'); // PNG形式で画像データを取得
+                link.download = `${tmpDict.raceName}.png`; // ファイル名
+                link.click(); // ダウンロードをトリガー
+            }).catch(err => {
+                console.error('Error capturing screenshot:', err);
+            });
+        });
 
         function generateButton(s) {
             var b = document.createElement("div");
