@@ -11,6 +11,7 @@
 // @connect db.netkeiba.com
 // @require     https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min.js
 // @resource    jqUI_CSS  http://ajax.googleapis.com/ajax/libs/jqueryui/1.12.0/themes/base/jquery-ui.css
+// @require      https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // ==/UserScript==
 
 
