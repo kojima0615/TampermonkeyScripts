@@ -1,11 +1,11 @@
 // ==UserScript==
-// @name  timeComparison
+// @name  timeComparisonNar
 // @namespace    http://tampermonkey.net/
 // @version      2025-01-02
-// @description  中央競馬のタイム比較
+// @description  地方競馬のタイム比較
 // @author       kojima0615
-// @match        https://race.netkeiba.com/race/shutuba.html*
-// @match        https://race.netkeiba.com/odds/index.html*
+// @match        https://nar.netkeiba.com/race/shutuba.html*
+// @match        https://nar.netkeiba.com/odds/index.html*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=netkeiba.com
 // @grant GM_xmlhttpRequest
 // @connect db.netkeiba.com
@@ -34,7 +34,7 @@
             return decodeURIComponent(results[2].replace(/\+/g, " "));
         }
 
-        var url = url = "https://race.netkeiba.com/race/shutuba.html?race_id=" + getParam("race_id");
+        var url = url = "https://nar.netkeiba.com/race/shutuba.html?race_id=" + getParam("race_id");
         //出馬テーブル取得
         //各馬の過去レースへのリンクを取得
         function getHorseData(url) {
@@ -65,10 +65,8 @@
 
                             for (const element of horse_raw) {
                                 const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
-                                const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
-                                //人気が空になる
-                                const number = element.children[1].innerHTML;
-                                const weight = element.children[5].innerHTML;
+                                const number = element.children[1].innerText
+                                const weight = element.getElementsByClassName('Txt_C')[0].innerText
                                 horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
@@ -78,8 +76,8 @@
                                 const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
                                 const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
                                 //人気が空になる
-                                const number = element.children[1].innerHTML;
-                                const weight = element.children[5].innerHTML;
+                                const number = element.children[1].innerText
+                                const weight = element.getElementsByClassName('Txt_C')[0].innerText
                                 horseLink[horsename.getAttribute('title')] = horsename.getAttribute('href');
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
@@ -125,42 +123,42 @@
         var markDict = { selectedDict: selectedDict, numberDict: numberDict };
         cart_get_itemlist("horse_" + getParam("race_id"), updateSelectDict.bind(markDict));
 
+
+        var oddsD = { odds: {}, numberDict: numberDict, horseLink: horseLink };
+        function padWithZero(number) {
+            return number < 10 ? '0' + number : number.toString();
+          }
         //オッズ確認
         /* Area created in the intern End */
         //これで単複オッズ及び人気を返す
-        function oddsCallback(_this, _odds_status, _data) {
+        function mapOdds(odds_status,data,oddsD) {
             ///statusがyosoの場合と、resultの場合で分岐
-            if (_odds_status.status == "yoso") {
+            if (odds_status == "real") {
                 //単勝オッズは返ってくるが、何を基準にインデックスが振られているのかわからん。
                 //ぱっと見horseIdっぽい
                 //horseLinkをソートすれば良さそう
-                const horseLinkReverse = Object.fromEntries(Object.entries(this.horseLink).map(([key, value]) => [value, key]))
+                const horseLinkReverse = Object.fromEntries(Object.entries(oddsD.horseLink).map(([key, value]) => [value, key]))
                 const keys = Object.keys(horseLinkReverse);
                 keys.sort();
                 for (let i = 0; i < keys.length; i++) {
                     //[単勝オッズ,人気]
-                    this.odds[horseLinkReverse[keys[i]]] = _odds_status.data.odds["1"][i + 1];
+                    oddsD.odds[horseLinkReverse[keys[i]]] = data[padWithZero(Number(oddsD.numberDict[horseLinkReverse[keys[i]]]))];
                 }
             }
-            else if (_odds_status.status == "result") {
-                for (const key in this.numberDict) {
-                    //[単勝オッズ,人気]
-                    this.odds[key] = _odds_status.data.odds["1"][('00' + this.numberDict[key]).slice(-2)];
-                }
-            }
-
         }
-        var oddsD = { odds: {}, numberDict: numberDict, horseLink: horseLink };
-        await $.oddsUpdate({
-            apiUrl: 'https://race.netkeiba.com/api/api_get_jra_odds.html',
-            raceId: getParam("race_id"),
-            isPremium: 0,
-            // debugMode:true,
-            // callbackApiComplete: oddsCallback.bind(oddsD)
-            callbackApiOverrideView: oddsCallback.bind(oddsD)
-        });
-
-
+        // URLパラメータを作成
+        const oddsUrl = `https://nar.netkeiba.com/api/api_get_nar_odds.html?race_id=${getParam("race_id")}`;
+        var response = await fetch(oddsUrl).then(response => {
+            // レスポンスが成功かどうかを確認
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            return response.json(); // JSONデータとしてレスポンスを解析
+          })
+          .catch(error => {
+            console.error('There was a problem with the fetch operation:', error); // エラーハンドリング
+          });
+        mapOdds(response.odds_status,response.ary_odds,oddsD)
         //過去レース情報を取得
         function getHorseResult(url, horseName) {
             return new Promise((resolve, reject) => {
@@ -254,12 +252,15 @@
         let path = location.pathname
         var parent = null;
         if (path == "/race/shutuba.html") {
-            parent = document.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('RaceTableArea')[0];
+            parent = document.querySelector(
+                '.RaceTableArea'
+            );
         }
         else if (path == "/odds/index.html") {
-            parent = document.getElementById('page').getElementsByClassName('RaceColumn02')[0].getElementsByClassName('UmarenWrapper clearfix')[0];
+            parent = document.querySelector(
+                '.OddsDataCommon'
+            );
         }
-
 
         //アコーディオンを作成
         var linkElement = document.createElement("link");
@@ -375,7 +376,7 @@
         // parent.appendChild(select);
         selectors.appendChild(select);
 
-        var placeList = ["指定なし", "札幌", "函館", "福島", "新潟", "中山", "東京", "中京", "京都", "阪神", "小倉"];//中央の競馬場一覧
+        var placeList = ["指定なし","大井","川崎","船橋","浦和","帯広","門別","盛岡","水沢","金沢","笠松","名古屋","園田","姫路","高知","佐賀"];//南関東の競馬場一覧
         var description = document.createElement('div');
         description.innerHTML = "開催地:";
         description.classList.add("input-group-text");
@@ -535,7 +536,7 @@
                 var tdc = document.createElement('td');
                 //未来のレースだとオッズの返し方が違うらしい
                 try {
-                    tdc.textContent = oddsD.odds[l[columnIndex[nameIndex]]][2];
+                    tdc.textContent = oddsD.odds[l[columnIndex[nameIndex]]]["Ninki"];
                 }
                 catch (e) {
                     tdc.textContent = "**"
