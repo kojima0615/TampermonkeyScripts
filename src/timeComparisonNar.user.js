@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name  timeComparisonNar
 // @namespace    http://tampermonkey.net/
-// @version      2025-01-02
+// @version      2025-01-04
 // @description  地方競馬のタイム比較
 // @author       kojima0615
 // @match        https://nar.netkeiba.com/race/shutuba.html*
@@ -146,6 +146,19 @@
                     oddsD.odds[horseLinkReverse[keys[i]]] = data[padWithZero(Number(oddsD.numberDict[horseLinkReverse[keys[i]]]))];
                 }
             }
+            else if(odds_status == "yoso") {
+                //単勝オッズは返ってくるが、何を基準にインデックスが振られているのかわからん。
+                //ぱっと見horseIdっぽい
+                //horseLinkをソートすれば良さそう
+                const horseLinkReverse = Object.fromEntries(Object.entries(oddsD.horseLink).map(([key, value]) => [value, key]))
+                const keys = Object.keys(horseLinkReverse);
+                keys.sort();
+                for (let i = 0; i < keys.length; i++) {
+                    //[単勝オッズ,人気]
+                    console.log()
+                    oddsD.odds[horseLinkReverse[keys[i]]] = data["KettoNum"][keys[i].split('/').filter(Boolean).pop()];
+                }
+            }
         }
         // URLパラメータを作成
         const oddsUrl = `https://nar.netkeiba.com/api/api_get_nar_odds.html?race_id=${getParam("race_id")}`;
@@ -281,7 +294,6 @@
 
         //タイム比較
         var item = document.createElement("div");
-        item.id = "timeComp";
         item.classList.add("accordion-item");
         accordion.appendChild(item);
         var header = document.createElement("h2");

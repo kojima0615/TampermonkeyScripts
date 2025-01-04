@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name  timeComparison
 // @namespace    http://tampermonkey.net/
-// @version      2025-01-02
+// @version      2025-01-04
 // @description  中央競馬のタイム比較
 // @author       kojima0615
 // @match        https://race.netkeiba.com/race/shutuba.html*
@@ -126,6 +126,10 @@
         var markDict = { selectedDict: selectedDict, numberDict: numberDict };
         cart_get_itemlist("horse_" + getParam("race_id"), updateSelectDict.bind(markDict));
 
+
+        function padWithZero(number) {
+            return number < 10 ? '0' + number : number.toString();
+          }
         //オッズ確認
         /* Area created in the intern End */
         //これで単複オッズ及び人気を返す
@@ -141,6 +145,18 @@
                 for (let i = 0; i < keys.length; i++) {
                     //[単勝オッズ,人気]
                     this.odds[horseLinkReverse[keys[i]]] = _odds_status.data.odds["1"][i + 1];
+                }
+            }
+            else if(_odds_status.status == "middle") {
+                //単勝オッズは返ってくるが、何を基準にインデックスが振られているのかわからん。
+                //ぱっと見horseIdっぽい
+                //horseLinkをソートすれば良さそう
+                const horseLinkReverse = Object.fromEntries(Object.entries(this.horseLink).map(([key, value]) => [value, key]))
+                const keys = Object.keys(horseLinkReverse);
+                keys.sort();
+                for (let i = 0; i < keys.length; i++) {
+                    //[単勝オッズ,人気]
+                    this.odds[horseLinkReverse[keys[i]]] = _odds_status.data.odds["1"][padWithZero(Number(this.numberDict[horseLinkReverse[keys[i]]]))];
                 }
             }
             else if (_odds_status.status == "result") {
@@ -280,7 +296,6 @@
 
         //タイム比較
         var item = document.createElement("div");
-        item.id = "timeComp";
         item.classList.add("accordion-item");
         accordion.appendChild(item);
         var header = document.createElement("h2");
