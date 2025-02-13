@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name  timeComparison
 // @namespace    http://tampermonkey.net/
-// @version      2025-01-04
+// @version      2025-02-13
 // @description  中央競馬のタイム比較
 // @author       kojima0615
 // @match        https://race.netkeiba.com/race/shutuba.html*
@@ -63,9 +63,11 @@
                             const horse_selected_raw = responseXML.querySelectorAll(
                                 '.HorseList Selected'
                             );
+                            //resolve({horse_raw});
 
                             for (const element of horse_raw) {
-                                const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
+                                try{
+                                    const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
                                 const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
                                 //人気が空になる
                                 const number = element.children[1].innerHTML;
@@ -74,8 +76,13 @@
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
                                 selectedDict[horsename.getAttribute('title')] = 0;
+                                }
+                                catch(e){
+                                }
+
                             }
                             for (const element of horse_selected_raw) {
+                                try{
                                 const horsename = element.getElementsByClassName('HorseInfo')[0].getElementsByClassName('HorseName')[0].getElementsByTagName('a')[0];
                                 const popularity = element.getElementsByClassName('Popular Popular_Ninki Txt_C')[0].children[0].textContent;
                                 //人気が空になる
@@ -85,6 +92,9 @@
                                 weightDict[horsename.getAttribute('title')] = weight;
                                 numberDict[horsename.getAttribute('title')] = number;
                                 selectedDict[horsename.getAttribute('title')] = 0;
+                                }
+                                catch(e){
+                                }
                             }
                             resolve({ horseLink: horseLink, weightDict: weightDict, numberDict: numberDict, selectedDict: selectedDict, raceName: raceName });
                         }
@@ -107,6 +117,7 @@
         var numberDict = tmpDict.numberDict;
         var selectedDict = {};
         var raceName = tmpDict.raceName.replace(/\r?\n|\r/g, "");
+        //var raceName = tmpDict.raceName;
 
         //--:記録されない0を置く,◎:1,丸:2,黒三角:3,三角:4,星:5,チェック:98,消:99
         function updateSelectDict(result) {
@@ -580,7 +591,7 @@
                 alert('Target div not found!');
                 return;
             }
-    
+
             // スクリーンショットを取得
             html2canvas(targetDiv).then(canvas => {
                 // 画像をダウンロード
