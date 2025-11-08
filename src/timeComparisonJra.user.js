@@ -1,11 +1,11 @@
 // ==UserScript==
-// @name         timeComparisonNar
+// @name         timeComparisonJra
 // @namespace    http://tampermonkey.net/
 // @version      2025-11-08
-// @description  地方競馬のタイム比較
+// @description  中央競馬のタイム比較
 // @author       kojima0615
-// @match        https://nar.netkeiba.com/race/shutuba.html*
-// @match        https://nar.netkeiba.com/odds/index.html*
+// @match        https://race.netkeiba.com/race/shutuba.html*
+// @match        https://race.netkeiba.com/odds/index.html*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=netkeiba.com
 // @grant        GM_xmlhttpRequest
 // @connect      db.netkeiba.com
@@ -17,9 +17,9 @@
 (function () {
     'use strict';
 
-    const DEBUG_KEY = 'timeComparisonNar_debug';
+    const DEBUG_KEY = 'timeComparison_debug';
     const MARK_LABELS = { '0': '--', '1': '◎', '2': '⚪︎', '3': '▲', '4': '△', '5': '☆', '98': '✔️', '99': '消' };
-    const PLACE_OPTIONS = ['指定なし', '大井', '川崎', '船橋', '浦和', '帯広', '門別', '盛岡', '水沢', '金沢', '笠松', '名古屋', '園田', '姫路', '高知', '佐賀'];
+    const PLACE_OPTIONS = ['指定なし', '札幌', '函館', '福島', '新潟', '中山', '東京', '中京', '京都', '阪神', '小倉'];
     const STYLESHEET_URL = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
     const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
 
@@ -39,17 +39,17 @@
             return;
         }
 
-        const state = createInitialState(raceId);
-        await populateEntries(state);
-        await populateOdds(state);
-        await populateRaceHistories(state);
-        buildInterface(state);
+        const runtime = createInitialState(raceId);
+        await populateEntries(runtime);
+        await populateOdds(runtime);
+        await populateRaceHistories(runtime);
+        buildInterface(runtime);
     }
 
     function createInitialState(raceId) {
         return {
             raceId,
-            raceUrl: `https://nar.netkeiba.com/race/shutuba.html?race_id=${raceId}`,
+            raceUrl: `https://race.netkeiba.com/race/shutuba.html?race_id=${raceId}`,
             raceName: 'レース名未取得',
             horseLinks: {},
             horseWeights: {},
@@ -76,17 +76,15 @@
         state.currentRaceType = detectCurrentRaceType(doc);
         logDebug('コース情報', { currentRaceType: state.currentRaceType });
 
-        const entries = doc.querySelectorAll('.HorseList');
-        entries.forEach((entry) => {
+        const horseEntries = doc.querySelectorAll('.HorseList');
+        horseEntries.forEach((entry) => {
             try {
                 const horseAnchor = entry.querySelector('.HorseInfo .HorseName a');
                 if (!horseAnchor) return;
                 const horseName = horseAnchor.getAttribute('title');
                 state.horseLinks[horseName] = horseAnchor.getAttribute('href');
-                const numberCell = entry.children[1];
-                const weightCell = entry.querySelector('.Txt_C');
-                state.horseNumbers[horseName] = numberCell?.textContent?.trim() || '';
-                state.horseWeights[horseName] = weightCell?.textContent?.trim() || '';
+                state.horseWeights[horseName] = entry.children[5]?.textContent?.trim() || '';
+                state.horseNumbers[horseName] = entry.children[1]?.textContent?.trim() || '';
                 state.selectionMarks[horseName] = '0';
             } catch (error) {
                 logDebug('出走馬情報の解析に失敗', { message: error?.message || error });
@@ -100,9 +98,10 @@
     function applySelectionMarks(state, cartResult) {
         const decoded = {};
         Object.keys(cartResult || {}).forEach((key) => {
-            const parts = cartResult[key]._cd.split('_');
-            decoded[parts[0]] = parts[1];
+            const [number, mark] = cartResult[key]._cd.split('_');
+            decoded[number] = mark;
         });
+
         Object.keys(state.horseNumbers).forEach((horseName) => {
             const number = state.horseNumbers[horseName];
             state.selectionMarks[horseName] = decoded[number] || '0';
@@ -110,63 +109,75 @@
     }
 
     async function populateOdds(state) {
-        const oddsUrl = `https://nar.netkeiba.com/api/api_get_nar_odds.html?race_id=${state.raceId}`;
+        const pad2 = (value) => (value < 10 ? `0${value}` : `${value}`);
+        const oddsContext = {
+            odds: state.oddsMap,
+            numberMap: state.horseNumbers,
+            linkMap: state.horseLinks,
+        };
+
+        function handleOdds(_, oddsStatus) {
+            const status = oddsStatus.status;
+            const oddsData = oddsStatus.data?.odds?.['1'];
+            if (!oddsData) return;
+
+            const reverseLink = Object.fromEntries(
+                Object.entries(this.linkMap).map(([name, href]) => [href, name])
+            );
+
+            const sortedKeys = Object.keys(reverseLink).sort();
+            sortedKeys.forEach((hrefKey, index) => {
+                const horseName = reverseLink[hrefKey];
+                if (!horseName) return;
+                if (status === 'yoso') {
+                    this.odds[horseName] = oddsData[index + 1];
+                } else if (status === 'middle') {
+                    const number = this.numberMap[horseName];
+                    this.odds[horseName] = oddsData[pad2(Number(number))];
+                }
+            });
+
+            if (status === 'result') {
+                Object.keys(this.numberMap).forEach((horseName) => {
+                    const num = this.numberMap[horseName];
+                    this.odds[horseName] = oddsData[('00' + num).slice(-2)];
+                });
+            }
+        }
+
         try {
-            const response = await fetch(oddsUrl);
-            if (!response.ok) throw new Error('オッズAPI応答エラー');
-            const json = await response.json();
-            mapNarOdds(json, state);
-            logDebug('オッズ情報取得完了', { status: json.odds_status });
+            await $.oddsUpdate({
+                apiUrl: 'https://race.netkeiba.com/api/api_get_jra_odds.html',
+                raceId: state.raceId,
+                isPremium: 0,
+                callbackApiOverrideView: handleOdds.bind(oddsContext),
+            });
+            logDebug('オッズ情報取得完了');
         } catch (error) {
             logDebug('オッズ情報取得に失敗', { message: error?.message || error });
         }
     }
 
-    function mapNarOdds(apiResponse, state) {
-        const status = apiResponse?.odds_status;
-        const oddsData = apiResponse?.ary_odds;
-        if (!oddsData) return;
-
-        const pad2 = (value) => value.toString().padStart(2, '0');
-
-        if (status === 'real') {
-            Object.keys(state.horseNumbers).forEach((horseName) => {
-                const key = pad2(state.horseNumbers[horseName] || '');
-                const entry = oddsData[key];
-                if (entry) {
-                    state.oddsMap[horseName] = [entry.Odds || '**', entry.Ninki || '--'];
-                }
-            });
-        } else if (status === 'yoso') {
-            const reverseLink = Object.fromEntries(
-                Object.entries(state.horseLinks).map(([name, href]) => [href, name])
-            );
-            const sorted = Object.keys(reverseLink).sort();
-            sorted.forEach((href) => {
-                const horseName = reverseLink[href];
-                const horseId = href.split('/').filter(Boolean).pop();
-                const entry = oddsData?.KettoNum?.[horseId];
-                if (entry) {
-                    state.oddsMap[horseName] = [entry.Odds || '**', entry.Ninki || '--'];
-                }
-            });
-        }
-    }
-
     async function populateRaceHistories(state) {
         const horseNames = Object.keys(state.horseLinks);
-        const historyPromises = horseNames.map((horse) => fetchHorseHistory(state.horseLinks[horse], horse));
+        const historyPromises = horseNames.map((horseName) =>
+            fetchHorseHistory(state.horseLinks[horseName], horseName)
+        );
+
         const histories = await Promise.all(historyPromises);
         const aggregated = {};
 
         histories.forEach((history) => {
-            Object.keys(history).forEach((type) => {
-                if (!aggregated[type]) aggregated[type] = [];
-                aggregated[type].push(...history[type]);
+            Object.keys(history).forEach((raceType) => {
+                if (!aggregated[raceType]) aggregated[raceType] = [];
+                aggregated[raceType].push(...history[raceType]);
             });
         });
 
-        Object.keys(aggregated).forEach((type) => aggregated[type].sort());
+        Object.keys(aggregated).forEach((raceType) => {
+            aggregated[raceType].sort();
+        });
+
         state.raceResultsByType = aggregated;
         logDebug('集計済み距離一覧', { raceTypeCount: Object.keys(aggregated).length });
     }
@@ -248,9 +259,12 @@
             'table.db_h_race_results tbody tr',
             '#horse_results_box table tbody tr',
         ];
+
         for (const selector of selectors) {
             const rows = doc.querySelectorAll(selector);
-            if (rows && rows.length) return Array.from(rows);
+            if (rows && rows.length) {
+                return Array.from(rows);
+            }
         }
         return [];
     }
@@ -280,7 +294,7 @@
         if (!parent) return;
 
         const accordion = obtainAccordion(parent);
-        const panel = createAccordionPanel(accordion, 'タイム比較', 'timeCompNar');
+        const panel = createAccordionPanel(accordion, 'タイム比較', 'timeComp');
         const body = panel.querySelector('.accordion-body');
         const container = document.createElement('div');
         body.appendChild(container);
@@ -294,7 +308,7 @@
 
     function resolveParentContainer() {
         const path = location.pathname;
-        const page = document.getElementById('page') || document.body;
+        const page = document.getElementById('page');
         if (!page) {
             logDebug('ページコンテナが見つかりません');
             return null;
@@ -303,22 +317,22 @@
         const candidates =
             path === '/race/shutuba.html'
                 ? [
-                      () => document.querySelector('.RaceTableArea'),
-                      () => document.querySelector('.RaceTable01'),
-                      () => document.querySelector('.RaceTableBlock'),
-                      () => page,
+                      () => page.querySelector('.RaceColumn02 .RaceTableArea'),
+                      () => page.querySelector('.RaceColumn02 .RaceTable01'),
+                      () => page.querySelector('.RaceTableArea'),
                   ]
                 : path === '/odds/index.html'
                 ? [
-                      () => document.querySelector('.OddsDataCommon'),
-                      () => document.querySelector('.OddsBox'),
-                      () => page,
+                      () => page.querySelector('.RaceColumn02 .UmarenWrapper.clearfix'),
+                      () => page.querySelector('.RaceColumn02 .OddsBox'),
                   ]
                 : [];
 
         for (const resolver of candidates) {
             const node = resolver();
-            if (node) return node;
+            if (node) {
+                return node;
+            }
         }
 
         logDebug('親コンテナが見つからないためpage直下に挿入します');
@@ -373,11 +387,11 @@
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.classList.add('form-check-input');
-        input.id = 'timeComparisonNarDebugSwitch';
+        input.id = 'timeComparisonDebugSwitch';
         input.checked = debugEnabled;
         const label = document.createElement('label');
         label.classList.add('form-check-label');
-        label.setAttribute('for', 'timeComparisonNarDebugSwitch');
+        label.setAttribute('for', 'timeComparisonDebugSwitch');
         label.textContent = 'デバッグモード';
 
         wrapper.appendChild(input);
@@ -404,7 +418,7 @@
             debugEnabled = event.target.checked;
             saveDebugPreference(debugEnabled);
             refreshDebugPanel();
-            if (debugEnabled) console.info('[timeComparisonNar] デバッグモードを有効化しました');
+            if (debugEnabled) console.info('[timeComparison] デバッグモードを有効化しました');
         });
     }
 
@@ -413,7 +427,9 @@
         selectorsRow.classList.add('d-flex', 'flex-row');
         container.appendChild(selectorsRow);
 
-        selectorsRow.appendChild(createLabel('距離:'));
+        const distanceLabel = createLabel('距離:');
+        selectorsRow.appendChild(distanceLabel);
+
         const distanceSelect = document.createElement('select');
         distanceSelect.classList.add('form-select', 'my-2', 'w-25');
         const raceTypes = Object.keys(state.raceResultsByType).sort();
@@ -425,7 +441,9 @@
         });
         selectorsRow.appendChild(distanceSelect);
 
-        selectorsRow.appendChild(createLabel('開催地:'));
+        const placeLabel = createLabel('開催地:');
+        selectorsRow.appendChild(placeLabel);
+
         const placeSelect = document.createElement('select');
         placeSelect.classList.add('form-select', 'my-2', 'w-25');
         PLACE_OPTIONS.forEach((place) => {
@@ -474,14 +492,7 @@
             }
         }
 
-        return {
-            distanceSelect,
-            placeSelect,
-            fromDateInput,
-            toDateInput,
-            searchButton,
-            hasRaceType: raceTypes.length > 0,
-        };
+        return { distanceSelect, placeSelect, fromDateInput, toDateInput, searchButton, hasRaceType: raceTypes.length > 0 };
     }
 
     function createResultTable(container, state, ui) {
@@ -496,16 +507,18 @@
         const table = document.createElement('table');
         table.classList.add('table');
         const headerRow = document.createElement('tr');
-        ['馬名', 'タイム', '上り', '斤量差<br>(本レース-過去レース)', '開催', '馬場', '通過', '着順', '着差', '日付', '人気<br>(本レース)'].forEach((label) => {
+        const headers = ['馬名', 'タイム', '上り', '斤量差<br>(本レース-過去レース)', '開催', '馬場', '通過', '着順', '着差', '日付', '人気<br>(本レース)'];
+        headers.forEach((text) => {
             const th = document.createElement('th');
-            th.innerHTML = label;
+            th.innerHTML = text;
             headerRow.appendChild(th);
         });
         table.appendChild(headerRow);
         container.appendChild(table);
 
         if (ui.hasRaceType) {
-            renderResults(table, state.raceResultsByType[ui.distanceSelect.value], state, ui);
+            const initialType = ui.distanceSelect.value;
+            renderResults(table, state.raceResultsByType[initialType], state, ui);
         }
         return table;
     }
@@ -518,14 +531,14 @@
             const d = (`0${date.getDate()}`).slice(-2);
             return `${y}/${m}/${d}`;
         };
-        const fromDate = formatDate($(ui.fromDateInput).datepicker('getDate'));
-        const toDate = formatDate($(ui.toDateInput).datepicker('getDate'));
+        const fromTime = formatDate($(ui.fromDateInput).datepicker('getDate'));
+        const toTime = formatDate($(ui.toDateInput).datepicker('getDate'));
 
         while (table.rows.length > 1) table.deleteRow(-1);
         list.forEach((record) => {
             const [time, agari, passing, margin, horse, date, place, condition, weight, rank] = record;
-            if (date > toDate || date < fromDate) return;
-            if (ui.placeSelect.value !== '指定なし' && place.indexOf(ui.placeSelect.value) === -1) return;
+            if (date > toTime || date < fromTime) return;
+            if (ui.placeSelect.value !== '指定なし' && !place.includes(ui.placeSelect.value)) return;
 
             const row = document.createElement('tr');
             appendTextCell(row, decorateHorseName(horse, state));
@@ -551,7 +564,8 @@
             return;
         }
         const update = () => {
-            renderResults(table, state.raceResultsByType[ui.distanceSelect.value], state, ui);
+            const type = ui.distanceSelect.value;
+            renderResults(table, state.raceResultsByType[type], state, ui);
         };
         ui.distanceSelect.addEventListener('change', update);
         ui.placeSelect.addEventListener('change', update);
@@ -567,7 +581,7 @@
     }
 
     function captureScreenshot(state) {
-        const target = document.getElementById('timeCompNar');
+        const target = document.getElementById('timeComp');
         if (!target) {
             alert('Target div not found!');
             return;
@@ -582,10 +596,10 @@
             .catch((error) => console.error('Error capturing screenshot:', error));
     }
 
-    function decorateHorseName(horseName, state) {
-        const mark = MARK_LABELS[state.selectionMarks[horseName]] || '--';
-        const number = state.horseNumbers[horseName] || '--';
-        return `${mark}(${number})${horseName}`;
+    function decorateHorseName(horse, state) {
+        const mark = MARK_LABELS[state.selectionMarks[horse]] || '--';
+        const number = state.horseNumbers[horse] || '--';
+        return `${mark}(${number})${horse}`;
     }
 
     function normalizePlace(place) {
@@ -593,11 +607,10 @@
         return /^[0-9]/.test(place) ? place.slice(1, -1) : place;
     }
 
-    function safeOdds(entry) {
-        if (!entry) return '**';
-        if (Array.isArray(entry)) return entry[1] || entry[0] || '**';
-        if (typeof entry === 'string') return entry;
-        return entry.Ninki || entry.Odds || '**';
+    function safeOdds(oddsEntry) {
+        if (!oddsEntry) return '**';
+        if (Array.isArray(oddsEntry)) return oddsEntry[2] || '**';
+        return oddsEntry;
     }
 
     function appendTextCell(row, text) {
@@ -623,7 +636,7 @@
     function detectCurrentRaceType(doc) {
         const candidates = [
             doc.querySelector('.RaceData01'),
-            doc.querySelector('.RaceData') ,
+            doc.querySelector('.RaceData'),
             doc.querySelector('.RaceData02'),
         ];
         for (const node of candidates) {
@@ -641,7 +654,8 @@
 
     function extractSurface(label) {
         if (!label) return '';
-        const match = label.replace(/ダート/g, 'ダ').match(/芝|ダ|障/);
+        const normalized = label.replace(/ダート/g, 'ダ');
+        const match = normalized.match(/芝|ダ|障/);
         return match ? match[0] : '';
     }
 
@@ -735,7 +749,7 @@
         const entry = payload ? `[${timestamp}] ${message} :: ${JSON.stringify(payload)}` : `[${timestamp}] ${message}`;
         debugLogs.push(entry);
         if (debugEnabled) {
-            console.debug('[timeComparisonNar]', message, payload || '');
+            console.debug('[timeComparison]', message, payload || '');
             refreshDebugPanel();
         }
     }
